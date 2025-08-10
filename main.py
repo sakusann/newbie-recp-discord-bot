@@ -119,8 +119,24 @@ async def ping(interaction: discord.Interaction):
 async def on_ready():
     print(f'✅ {client.user} としてログインしました！')
 
-# ... (on_messageは変更なし)
-
+@client.event
+async def on_message(message):
+    if message.author.bot or not message.guild: return
+    config = get_config(str(message.guild.id))
+    target_channel_id, keyword, role_id = config.get("channel_id"), config.get("keyword"), config.get("role_id")
+    if not all([target_channel_id, keyword, role_id]): return
+    if message.channel.id == target_channel_id and keyword in message.content:
+        role = message.guild.get_role(role_id)
+        if role and role not in message.author.roles:
+            try:
+                # この部分はDB通信を伴わないのでdeferは不要
+                await message.author.add_roles(role)
+                # ログ送信はDB通信を伴うが、バックグラウンド処理なのでエラーになっても影響は少ない
+                # ユーザーへの応答を優先する
+                await message.channel.send(f"{message.author.mention} に **{role.name}** を付与しました！", delete_after=10)
+                await send_log(message.guild, "✅ ロール付与成功", f"{message.author.mention} に **{role.name}** を付与", discord.Color.green())
+            except Exception as e:
+                print(f"ロール付与エラー: {e}")
 # --- メイン実行 ---
 keep_alive()
 if DISCORD_TOKEN:
