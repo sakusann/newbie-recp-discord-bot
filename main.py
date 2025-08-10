@@ -5,7 +5,7 @@ import pymongo
 from keep_alive import keep_alive
 
 # ===================================================================
-# 環境変数の読み込み - この方法でRenderの問題を回避します
+# 環境変数の読み込み
 # ===================================================================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
@@ -22,7 +22,7 @@ if MONGO_URI:
     except Exception as e:
         print(f"❌ MongoDB接続エラー: {e}")
 else:
-    print("❌ MONGO_URIが設定されていません。")
+    print("❌ MONGO_URIが環境変数に設定されていません。")
 
 # --- DB操作関数 ---
 def get_config(server_id):
@@ -33,7 +33,6 @@ def update_config(server_id, new_values):
     if db is None: return
     db.update_one({"_id": server_id}, {"$set": new_values}, upsert=True)
 
-# (これ以降のコードは、これまでと同じなので省略しますが、念のため全体を貼り付けます)
 # --- Discord Bot設定 ---
 intents = discord.Intents.default()
 intents.messages = True
@@ -55,52 +54,38 @@ class MyClient(discord.Client):
 
 client = MyClient(intents=intents)
 
-# --- エラーハンドリング ---
-async def handle_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    message = "❌ 予期せぬエラーが発生しました。"
-    if isinstance(error, app_commands.MissingPermissions):
-        message = "❌ このコマンドを実行するには「サーバーの管理」権限が必要です。"
-    print(f"エラー詳細: {type(error).__name__}: {error}")
-    if interaction.response.is_done():
-        await interaction.followup.send(message, ephemeral=True)
-    else:
-        await interaction.response.send_message(message, ephemeral=True)
+# ★★★★★★★★★★★★★★★★★★★★★★★
+# ここからコマンド定義（すべて defer() を適用）
+# ★★★★★★★★★★★★★★★★★★★★★★★
 
-# --- ログ送信機能 ---
-async def send_log(guild, title, description, color):
-    config = get_config(str(guild.id))
-    log_channel_id = config.get("log_channel_id")
-    if log_channel_id:
-        log_channel = guild.get_channel(log_channel_id)
-        if log_channel:
-            embed = discord.Embed(title=title, description=description, color=color)
-            await log_channel.send(embed=embed)
-
-# --- コマンド定義 ---
 @client.tree.command(name="set_channel", description="キーワードに反応するチャンネルを設定します。")
 @app_commands.checks.has_permissions(manage_guild=True)
 async def set_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True) # 先に応答を保留
     update_config(str(interaction.guild.id), {"channel_id": channel.id})
-    await interaction.response.send_message(f"✅ 監視対象を {channel.mention} に設定しました。", ephemeral=True)
+    await interaction.followup.send(f"✅ 監視対象を {channel.mention} に設定しました。", ephemeral=True)
 
 @client.tree.command(name="set_config", description="キーワードと付与するロールを設定します。")
 @app_commands.checks.has_permissions(manage_guild=True)
 async def set_config(interaction: discord.Interaction, keyword: str, role: discord.Role):
+    await interaction.response.defer(ephemeral=True) # 先に応答を保留
     if interaction.guild.me.top_role <= role:
-        await interaction.response.send_message(f"❌ Botのロールを {role.mention} より上位に配置してください。", ephemeral=True)
+        await interaction.followup.send(f"❌ Botのロールを {role.mention} より上位に配置してください。", ephemeral=True)
         return
     update_config(str(interaction.guild.id), {"keyword": keyword, "role_id": role.id})
-    await interaction.response.send_message(f"✅ キーワードを「**{keyword}**」、ロールを **{role.mention}** に設定しました。", ephemeral=True)
+    await interaction.followup.send(f"✅ キーワードを「**{keyword}**」、ロールを **{role.mention}** に設定しました。", ephemeral=True)
 
 @client.tree.command(name="set_log_channel", description="ログを送信するチャンネルを設定します。")
 @app_commands.checks.has_permissions(manage_guild=True)
 async def set_log_channel(interaction: discord.Interaction, log_channel: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True) # 先に応答を保留
     update_config(str(interaction.guild.id), {"log_channel_id": log_channel.id})
-    await interaction.response.send_message(f"✅ ログを {log_channel.mention} に送信します。", ephemeral=True)
+    await interaction.followup.send(f"✅ ログを {log_channel.mention} に送信します。", ephemeral=True)
 
 @client.tree.command(name="show_config", description="現在の設定を確認します。")
 @app_commands.checks.has_permissions(manage_guild=True)
 async def show_config(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True) # 先に応答を保留
     config = get_config(str(interaction.guild.id))
     channel = interaction.guild.get_channel(config.get("channel_id"))
     role = interaction.guild.get_role(config.get("role_id"))
@@ -110,11 +95,13 @@ async def show_config(interaction: discord.Interaction):
     embed.add_field(name="キーワード", value=config.get("keyword", "未設定"), inline=False)
     embed.add_field(name="付与するロール", value=role.mention if role else "未設定", inline=False)
     embed.add_field(name="ログチャンネル", value=log_channel.mention if log_channel else "未設定", inline=False)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
-@client.tree.command(name="ping", description="Botの動作をテストします。")
+@client.tree.command(name="ping", description="Botの動作と応答速度をテストします。")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(f"🏓 Pong!", ephemeral=True)
+    await interaction.response.defer(ephemeral=True) # 先に応答を保留
+    latency = client.latency * 1000
+    await interaction.followup.send(f"🏓 **Pong!**\n応答速度: `{latency:.2f}ms`", ephemeral=True)
     
 # --- イベントハンドラ ---
 @client.event
@@ -131,20 +118,14 @@ async def on_message(message):
         role = message.guild.get_role(role_id)
         if role and role not in message.author.roles:
             try:
+                # この部分はDB通信を伴わないのでdeferは不要
                 await message.author.add_roles(role)
-                await send_log(message.guild, "✅ ロール付与成功", f"{message.author.mention} に **{role.name}** を付与", discord.Color.green())
+                # ログ送信はDB通信を伴うが、バックグラウンド処理なのでエラーになっても影響は少ない
+                # ユーザーへの応答を優先する
                 await message.channel.send(f"{message.author.mention} に **{role.name}** を付与しました！", delete_after=10)
+                await send_log(message.guild, "✅ ロール付与成功", f"{message.author.mention} に **{role.name}** を付与", discord.Color.green())
             except Exception as e:
                 print(f"ロール付与エラー: {e}")
-
-# --- エラーハンドラ ---
-@set_channel.error
-@set_config.error
-@set_log_channel.error
-@show_config.error
-@ping.error
-async def on_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    await handle_error(interaction, error)
 
 # --- メイン実行 ---
 # Webサーバーを起動
@@ -155,9 +136,7 @@ if DISCORD_TOKEN:
     print("🚀 Discord Bot を起動中...")
     try:
         client.run(DISCORD_TOKEN)
-    except discord.errors.LoginFailure:
-        print("❌ Bot起動エラー: 不正なトークンです。")
     except Exception as e:
-        print(f"❌ 不明なBot起動エラー: {e}")
+        print(f"❌ Bot起動エラー: {e}")
 else:
-    print("❌ DISCORD_TOKENが設定されていません。")
+    print("❌ DISCORD_TOKENが環境変数に設定されていません。")
