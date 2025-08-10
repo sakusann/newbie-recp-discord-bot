@@ -141,4 +141,22 @@ async def on_message(message):
     if message.author.bot or not message.guild: return
     config = get_config(str(message.guild.id))
     target_channel_id, keyword, role_id = config.get("channel_id"), config.get("keyword"), config.get("role_id")
-    if not all([target_chann
+    if not all([target_channel_id, keyword, role_id]): return
+    if message.channel.id == target_channel_id and keyword in message.content:
+        role = message.guild.get_role(role_id)
+        if role and role not in message.author.roles:
+            try:
+                await message.author.add_roles(role)
+                await message.channel.send(f"{message.author.mention} に **{role.name}** を付与しました！", delete_after=10)
+                # ログ送信はDB書き込みを伴うため、成功を保証しない
+                # await send_log(message.guild, "✅ ロール付与成功", f"{message.author.mention} に **{role.name}** を付与", discord.Color.green())
+            except Exception as e:
+                print(f"ロール付与エラー: {e}")
+
+# --- メイン実行 ---
+keep_alive()
+if DISCORD_TOKEN:
+    print("🚀 Discord Bot を起動中...")
+    client.run(DISCORD_TOKEN)
+else:
+    print("❌ DISCORD_TOKENが環境変数に設定されていません。")
