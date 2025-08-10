@@ -172,13 +172,17 @@ async def on_message(message):
 # --- メイン実行 ---
 if __name__ == "__main__":
     keep_alive()
-    if not TOKEN:
-        print("❌ DISCORD_TOKENが設定されていません！")
-    if not MONGO_URI:
-        print("❌ MONGO_URIが設定されていません！")
-    
-    if TOKEN and MONGO_URI:
+
+    # MONGO_URIとTOKENが設定されているか確認
+    # 起動に失敗した場合は、Renderのログで原因が分かります
+    if not os.getenv("DISCORD_TOKEN") or not os.getenv("MONGO_URI"):
+        print("❌ DISCORD_TOKEN または MONGO_URI が環境変数に設定されていません。RenderのEnvironment Groupを確認してください。")
+    else:
+        print("🚀 Discord Bot を起動中...")
         try:
-            client.run(TOKEN)
+            # client.run() には必ずTOKENを渡します
+            client.run(os.getenv("DISCORD_TOKEN"))
+        except discord.errors.LoginFailure:
+            print("❌ Bot起動エラー: 不正なトークンです。DISCORD_TOKENが正しいか確認してください。")
         except Exception as e:
-            print(f"❌ Bot起動エラー: {e}")
+            print(f"❌ 不明なBot起動エラー: {e}")
