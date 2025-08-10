@@ -3,9 +3,16 @@ services:
     name: newbie-recp-discord-bot
     env: python
     plan: free
+
+    # ビルドと起動の設定
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python main.py"
+    
+    # 環境変数 - ここに直接書き込みます
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.4
-      - fromGroup: newbie-bot-secrets # あなたが設定した環境グループ名
+      - key: DISCORD_TOKEN
+        sync: false # この値をUIから変更しても、yamlで上書きしないようにする設定
+      - key: MONGO_URI
+        sync: false # 同上
