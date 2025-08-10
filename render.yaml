@@ -8,11 +8,13 @@ services:
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python main.py"
     
-    # 環境変数 - ここに直接書き込みます
+    # 環境変数の設定
+    # ここでキーを「事前定義」しておき、値はRenderのUIから入力します。
+    # valueを空にすることで、RenderがUIからの入力を待つようになります。
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.4
       - key: DISCORD_TOKEN
-        sync: false # この値をUIから変更しても、yamlで上書きしないようにする設定
+        value: "" # 値を空文字列として定義
       - key: MONGO_URI
-        sync: false # 同上
+        value: "" # 値を空文字列として定義
