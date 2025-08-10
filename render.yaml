@@ -1,14 +1,19 @@
 services:
   - type: web
-    name: discord-bot  # あなたのサービス名に合わせて変更可能
+    name: newbie-recp-discord-bot  # あなたのサービス名（自由に変更可）
     env: python
-    plan: free
+    plan: free # 無料プランを指定
+    
+    # Pythonのバージョンをここで強制的に指定
+    pythonVersion: "3.12" 
+
+    # ビルドコマンド
     buildCommand: "pip install -r requirements.txt"
+    
+    # 起動コマンド
     startCommand: "python main.py"
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.12  # ★★★ ここでバージョンを3.12に指定 ★★★
-      - key: DISCORD_TOKEN
-        fromSecret: true # RenderのSecret Managerから読み込む
-      - key: MONGO_URI
-        fromSecret: true # RenderのSecret Managerから読み込む
+
+    # 環境変数グループ（後でダッシュボードから設定）
+    # ここに直接キーと値を書くのではなく、RenderのUIから設定します
+    envVarGroups:
+      - name: discord-bot-secrets
