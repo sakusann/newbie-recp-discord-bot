@@ -11,5 +11,5 @@ services:
     # 環境変数の設定
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12
+        value: 3.12.4
       - fromGroup: newbie-bot-secrets # ★★★ ここでステップ1で作った環境グループを名前で呼び出します ★★★
