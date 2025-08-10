@@ -1,15 +1,15 @@
 services:
   - type: web
-    name: newbie-recp-discord-bot # サービス名（自由に変更できます）
+    name: newbie-recp-discord-bot
     env: python
-    plan: free # 無料プランを指定
+    plan: free
 
     # ビルドと起動の設定
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python main.py"
     
-    # 環境変数 - ここではPythonのバージョンのみを指定します
-    # ★★★ トークンなどの機密情報は、後でダッシュボードから手動で追加します ★★★
+    # 環境変数の設定
     envVars:
       - key: PYTHON_VERSION
         value: 3.12
+      - fromGroup: newbie-bot-secrets # ★★★ ここでステップ1で作った環境グループを名前で呼び出します ★★★
