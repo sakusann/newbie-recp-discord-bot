@@ -1,15 +1,15 @@
 services:
   - type: web
-    name: newbie-recp-discord-bot
+    name: newbie-recp-discord-bot-diag # 診断用なので名前を少し変えます
     env: python
     plan: free
 
-    # ビルドと起動の設定
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
-    
-    # 環境変数の設定
+    # Pythonのバージョンを指定
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.4
-      - fromGroup: newbie-bot-secrets # ★★★ ここでステップ1で作った環境グループを名前で呼び出します ★★★
+      - fromGroup: newbie-bot-secrets # 環境グループをリンク
+
+    # ★★★ 起動コマンドを診断用に変更 ★★★
+    # Linuxの `printenv` コマンドで、存在する全ての環境変数を表示します
+    startCommand: "printenv"
