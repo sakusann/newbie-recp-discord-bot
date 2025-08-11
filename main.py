@@ -8,38 +8,60 @@ from keep_alive import keep_alive
 # 環境変数の読み込み
 # ===================================================================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-MONGO_URI = os.getenv("MONGO_URI")
+POSTGRES_URI = os.getenv("POSTGRES_URI") # MongoDBから変更
 # ===================================================================
 
-# MongoDB 接続
-mongo_client = None
-db = None
-if MONGO_URI:
+# PostgreSQL 接続
+engine = None
+if POSTGRES_URI:
     try:
-        mongo_client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-        mongo_client.server_info()
-        db = mongo_client.get_database("discord_bot_db").get_collection("server_configs")
-        print("✅ MongoDBに正常に接続しました。")
+        engine = create_engine(POSTGRES_URI)
+        with engine.connect() as connection:
+            # テーブルが存在しない場合のみ作成
+            inspector = inspect(engine)
+            if not inspector.has_table("server_configs"):
+                meta = MetaData()
+                Table(
+                    "server_configs", meta,
+                    Column('server_id', BigInteger, primary_key=True),
+                    Column('channel_id', BigInteger),
+                    Column('role_id', BigInteger),
+                    Column('log_channel_id', BigInteger),
+                    Column('keyword', String),
+                )
+                meta.create_all(engine)
+                print("✅ テーブル 'server_configs' を新規作成しました。")
+        print("✅ PostgreSQLに正常に接続しました。")
     except Exception as e:
-        print(f"❌ MongoDB接続エラー: {e}")
+        print(f"❌ PostgreSQL接続エラー: {e}")
 else:
-    print("❌ MONGO_URIが環境変数に設定されていません。")
+    print("❌ POSTGRES_URIが環境変数に設定されていません。")
 
-# --- DB操作関数（改良版） ---
+# --- DB操作関数（PostgreSQL版） ---
 def get_config(server_id):
-    if db is None: return {}
-    return db.find_one({"_id": server_id}) or {}
+    if engine is None: return {}
+    with engine.connect() as connection:
+        result = connection.execute(text("SELECT * FROM server_configs WHERE server_id = :id"), {"id": int(server_id)})
+        row = result.fetchone()
+        return row._asdict() if row else {}
 
 def update_config(server_id, new_values):
-    if db is None: return None
-    try:
-        # 書き込み結果を待つように変更
-        result = db.update_one({"_id": server_id}, {"$set": new_values}, upsert=True)
-        print(f"🔄 DB更新試行: server_id={server_id}, acknowledged={result.acknowledged}")
-        return result
-    except Exception as e:
-        print(f"❌ update_configエラー: {e}")
-        return None
+    if engine is None: return
+    with engine.connect() as connection:
+        # UPSERT（存在すれば更新、なければ挿入）処理
+        stmt = text("""
+            INSERT INTO server_configs (server_id, {keys})
+            VALUES (:server_id, :{values})
+            ON CONFLICT (server_id) DO UPDATE
+            SET {update_stmt}
+        """.format(
+            keys=", ".join(new_values.keys()),
+            values=", :".join(new_values.keys()),
+            update_stmt=", ".join([f"{key} = EXCLUDED.{key}" for key in new_values.keys()])
+        ))
+        params = {"server_id": int(server_id), **new_values}
+        connection.execute(stmt, params)
+        connection.commit() # 変更を確定
 
 # --- Discord Bot設定 ---
 intents = discord.Intents.default()
