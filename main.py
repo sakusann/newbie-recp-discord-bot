@@ -137,24 +137,32 @@ async def set_log_channel(interaction: discord.Interaction, log_channel: discord
     message = f"✅ ログを {log_channel.mention} に送信します。"
     await handle_command_logic(interaction, logic, message)
 
-@client.tree.command(name="show_config", description="現在の設定を確認します。")
+@client.tree.command(name="check_roles", description="Botのロール階層と権限を診断します。")
 @app_commands.checks.has_permissions(manage_guild=True)
-async def show_config(interaction: discord.Interaction):
-    # このコマンドはDBから読み取るだけなので、エラー処理をシンプルにする
+async def check_roles(interaction: discord.Interaction):
     try:
         await interaction.response.defer(ephemeral=True)
-        config = get_config(str(interaction.guild.id))
-        channel = interaction.guild.get_channel(config.get("channel_id"))
-        role = interaction.guild.get_role(config.get("role_id"))
-        log_channel = interaction.guild.get_channel(config.get("log_channel_id"))
-        embed = discord.Embed(title="現在のBot設定", color=discord.Color.blue())
-        embed.add_field(name="監視チャンネル", value=channel.mention if channel else "未設定", inline=False)
-        embed.add_field(name="キーワード", value=config.get("keyword", "未設定"), inline=False)
-        embed.add_field(name="付与するロール", value=role.mention if role else "未設定", inline=False)
-        embed.add_field(name="ログチャンネル", value=log_channel.mention if log_channel else "未設定", inline=False)
+        bot_member = interaction.guild.me
+        permissions = bot_member.guild_permissions
+        
+        embed = discord.Embed(title="🔍 Bot権限・階層診断", color=discord.Color.orange())
+        embed.add_field(
+            name="Botの最上位ロール", 
+            value=f"{bot_member.top_role.mention} (サーバー内での位置: {bot_member.top_role.position})", 
+            inline=False
+        )
+        embed.add_field(
+            name="必要な権限のチェック",
+            value=(f"ロールの管理: {'✅' if permissions.manage_roles else '❌'}\n"
+                   f"メッセージの管理: {'✅' if permissions.manage_messages else '❌'}\n"
+                   f"メッセージの送信: {'✅' if permissions.send_messages else '❌'}"),
+            inline=False
+        )
+        embed.set_footer(text="ロールを付与するには、Botのロールが付与対象ロールより上位にある必要があります。")
         await interaction.followup.send(embed=embed, ephemeral=True)
+        
     except discord.errors.NotFound:
-        print("show_config タイムアウト") # ログに残すだけ
+        print("check_roles タイムアウト") # タイムアウトしても特に何もしない
 
 @client.tree.command(name="ping", description="Botの動作と応答速度をテストします。")
 async def ping(interaction: discord.Interaction):
