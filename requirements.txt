@@ -1,4 +1,4 @@
-discord.py==2.3.2
-flask==3.0.0
-pymongo[srv]
-PyNaCl
+discord.py
+Flask
+psycopg2-binary
+SQLAlchemy
