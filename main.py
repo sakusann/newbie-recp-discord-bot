@@ -1,8 +1,8 @@
 import discord
 from discord import app_commands
 import os
-import pymongo
 from keep_alive import keep_alive
+from sqlalchemy import create_engine, text, inspect, Table, Column, BigInteger, String, MetaData
 
 # ===================================================================
 # 環境変数の読み込み
