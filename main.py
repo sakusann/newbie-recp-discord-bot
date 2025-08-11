@@ -58,6 +58,20 @@ def update_config(server_id, new_values):
         connection.execute(stmt, params)
         connection.commit()
 
+# --- ログ送信機能 ---
+async def send_log(guild, title, description, color):
+    # この関数はDBから設定を読み取るだけなので、deferは不要
+    config = get_config(str(guild.id))
+    log_channel_id = config.get("log_channel_id")
+    if log_channel_id:
+        log_channel = guild.get_channel(log_channel_id)
+        if log_channel:
+            try:
+                embed = discord.Embed(title=title, description=description, color=color)
+                await log_channel.send(embed=embed)
+            except Exception as e:
+                print(f"ログチャンネルへの送信に失敗しました: {e}")```
+
 # --- Discord Bot設定 ---
 intents = discord.Intents.default()
 intents.messages = True
@@ -198,18 +212,35 @@ async def on_message(message):
             # ロールが存在し、ユーザーがまだ持っていない場合
             if role and role not in message.author.roles:
                 
-                # ロールを付与
+               
+        　　# ロールを付与
+            try:
                 await message.author.add_roles(role)
-                print(f"🎉 成功: {message.author} に '{role.name}' ロールを付与しました。")
-                
-                # ユーザーへの通知と、元のメッセージの削除
-                try:
-                    await message.delete()
-                    await message.channel.send(f"{message.author.mention} さんに **{role.name}** ロールを付与しました！", delete_after=10)
-                except discord.errors.Forbidden:
-                    print("エラー: メッセージの削除権限がありません。")
-                except Exception as e:
-                    print(f"通知/削除処理中にエラー: {e}")
+                print(f"🎉 成功: {message.author} に '{role.name}' ロールを付与しました！")
+
+                # ★★★ ログ送信機能をここで呼び出す ★★★
+                await send_log(
+                    guild=message.guild,
+                    title="✅ ロール付与成功",
+                    description=f"ユーザー: {message.author.mention}\nロール: {role.mention}",
+                    color=discord.Color.green()
+                )
+
+                # ユーザーへの通知                
+                await message.channel.send(f"{message.author.mention} さんに **{role.name}** ロールを付与しました！", delete_after=10)
+
+            except discord.errors.Forbidden:
+                # Botに必要な権限が不足している場合
+                print("エラー: ロールの付与またはメッセージの削除権限がありません。")
+                await send_log(
+                    guild=message.guild,
+                    title="❌ ロール付与失敗",
+                    description=f"原因: Botの権限不足です。\n"
+                                f"「ロールの管理」と「メッセージの管理」権限を確認してください。",
+                    color=discord.Color.red()
+                )
+            except Exception as e:
+                print(f"ロール付与/通知処理中にエラー: {e}")```
 
     except Exception as e:
         print(f"❌ on_message処理中に予期せぬエラーが発生: {e}")
