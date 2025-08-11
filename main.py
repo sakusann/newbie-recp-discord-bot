@@ -168,11 +168,55 @@ async def check_roles(interaction: discord.Interaction):
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"🏓 Pong! `{client.latency * 1000:.2f}ms`")
 
-# (イベントハンドラとメイン実行部分は変更なし)
+# --- イベントハンドラ ---
 @client.event
 async def on_ready():
     print(f'✅ {client.user} としてログインしました！')
-# ... on_message ...
+
+@client.event
+async def on_message(message):
+    # Bot自身のメッセージやDMは無視
+    if message.author.bot or not message.guild:
+        return
+
+    try:
+        # DBからこのサーバーの設定を取得
+        config = get_config(str(message.guild.id))
+        
+        # 必要な設定値が揃っているか確認
+        target_channel_id = config.get("channel_id")
+        keyword = config.get("keyword")
+        role_id = config.get("role_id")
+
+        if not all([target_channel_id, keyword, role_id]):
+            return
+
+        # 指定されたチャンネルで、キーワードが完全に一致する場合にのみ反応
+        if message.channel.id == target_channel_id and message.content == keyword:
+            role = message.guild.get_role(role_id)
+            
+            # ロールが存在し、ユーザーがまだ持っていない場合
+            if role and role not in message.author.roles:
+                
+                # ロールを付与
+                await message.author.add_roles(role)
+                print(f"🎉 成功: {message.author} に '{role.name}' ロールを付与しました。")
+                
+                # ユーザーへの通知と、元のメッセージの削除
+                try:
+                    await message.delete()
+                    await message.channel.send(f"{message.author.mention} さんに **{role.name}** ロールを付与しました！", delete_after=10)
+                except discord.errors.Forbidden:
+                    print("エラー: メッセージの削除権限がありません。")
+                except Exception as e:
+                    print(f"通知/削除処理中にエラー: {e}")
+
+    except Exception as e:
+        print(f"❌ on_message処理中に予期せぬエラーが発生: {e}")
+
+
+# --- メイン実行 ---
 keep_alive()
 if DISCORD_TOKEN and POSTGRES_URI:
+    print("🚀 Discord Bot を起動中...")
     client.run(DISCORD_TOKEN)
