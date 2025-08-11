@@ -213,7 +213,7 @@ async def on_message(message):
             if role and role not in message.author.roles:
                 
                
-        　　# ロールを付与
+            # ロールを付与
             try:
                 await message.author.add_roles(role)
                 print(f"🎉 成功: {message.author} に '{role.name}' ロールを付与しました！")
