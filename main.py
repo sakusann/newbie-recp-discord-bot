@@ -150,6 +150,25 @@ async def ping(interaction: discord.Interaction):
 async def on_ready():
     print(f'✅ {client.user} としてログインしました！')
 
+# 機能①：新規参加者へのウェルカムDM
+@client.event
+async def on_member_join(member):
+    if member.bot:
+        return
+    print(f"🎉 新規参加: {member.name} がサーバー '{member.guild.name}' に参加しました。")
+    welcome_message = (
+        f"{member.mention}さん「Platoon Server」へようこそ。\n"
+        "入隊希望の方は下記のコミュニティ規約を確認して頂き、 『確認しました』と <#1188077063899447333> へ書き込みをお願いします！\n"
+        "原則botのみでの対応になります。その為『』の中の文言のみを打込みお願い致します。\n\n"
+        "また、規約同意を頂けない場合はキック処理しますのでご了承下さい。\n"
+        "https://docs.google.com/document/d/1vuwClxhsNRUrAhR0SoaL5RA73qzTI6kY/edit#heading=h.30j0zll"
+    )
+    try:
+        await member.send(welcome_message)
+        print(f"✅ {member.name} にウェルカムDMを送信しました。")
+    except Exception as e:
+        print(f"❌ ウェルカムDM送信中にエラー: {e}")
+
 @client.event
 async def on_message(message):
     if message.author.bot or not message.guild:
