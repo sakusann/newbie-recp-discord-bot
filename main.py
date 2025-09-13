@@ -173,11 +173,7 @@ async def on_message(message):
                         description=f"ユーザー: {message.author.mention}\nロール: {role.mention}",
                         color=discord.Color.green()
                     )
-                    # メッセージ削除はForbiddenエラーを考慮
-                    try:
-                        await message.delete()
-                    except discord.errors.Forbidden:
-                        print("INFO: メッセージ削除権限がありません。")
+
                     
                     await message.channel.send(f"{message.author.mention} さんに **{role.name}** ロールを付与しました！", delete_after=10)
                 except discord.errors.Forbidden:
