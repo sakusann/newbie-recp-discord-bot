@@ -1,20 +1,10 @@
 services:
   - type: web
-    name: newbie-recp-discord-bot
-    env: python
-    plan: free
-
-    # ビルドと起動の設定
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
-    
-    # 環境変数の設定
-    # ここでキーを「事前定義」しておき、値はRenderのUIから入力します。
-    # valueを空にすることで、RenderがUIからの入力を待つようになります。
+    # ...
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.4
       - key: DISCORD_TOKEN
-        value: "" # 値を空文字列として定義
+        value: "" # 値が空
       - key: MONGO_URI
-        value: "" # 値を空文字列として定義
+        value: "" # 値が空
