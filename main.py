@@ -1,71 +1,52 @@
 import discord
 from discord import app_commands
 import os
-from sqlalchemy import create_engine, text, inspect, Table, Column, BigInteger, String, MetaData
+import pymongo # ★ PostgreSQL(sqlalchemy)から変更
 from keep_alive import keep_alive
 
 # ===================================================================
 # 環境変数の読み込み
 # ===================================================================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-POSTGRES_URI = os.getenv("POSTGRES_URI")
+MONGO_URI = os.getenv("MONGO_URI") # ★ POSTGRES_URIから変更
 # ===================================================================
 
-# PostgreSQL 接続
-engine = None
-if POSTGRES_URI:
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# MongoDB 接続ブロック
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+mongo_client = None
+db = None
+if MONGO_URI:
     try:
-        engine = create_engine(POSTGRES_URI)
-        with engine.connect() as connection:
-            inspector = inspect(engine)
-            if not inspector.has_table("server_configs"):
-                meta = MetaData()
-                Table(
-                    "server_configs", meta,
-                    Column('server_id', BigInteger, primary_key=True),
-                    Column('channel_id', BigInteger),
-                    Column('role_id', BigInteger),
-                    Column('log_channel_id', BigInteger),
-                    Column('keyword', String),
-                )
-                meta.create_all(engine)
-                print("✅ テーブル 'server_configs' を新規作成しました。")
-        print("✅ PostgreSQLに正常に接続しました。")
+        mongo_client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        mongo_client.server_info() # 接続をテスト
+        db = mongo_client.get_database("discord_bot_db").get_collection("server_configs")
+        print("✅ MongoDBに正常に接続しました。")
     except Exception as e:
-        print(f"❌ PostgreSQL接続エラー: {e}")
+        print(f"❌ MongoDB接続エラー: {e}")
 else:
-    print("❌ POSTGRES_URIが環境変数に設定されていません。")
+    print("❌ MONGO_URIが環境変数に設定されていません。")
 
-# --- DB操作関数 ---
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# DB操作関数 (MongoDB版)
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 def get_config(server_id):
-    if engine is None: return {}
-    with engine.connect() as connection:
-        result = connection.execute(text("SELECT * FROM server_configs WHERE server_id = :id"), {"id": int(server_id)})
-        row = result.fetchone()
-        return row._asdict() if row else {}
+    if db is None: return {}
+    # MongoDBではIDが文字列なので、変換は不要
+    return db.find_one({"_id": server_id}) or {}
 
 def update_config(server_id, new_values):
-    if engine is None: return None
+    if db is None: return None
     try:
-        with engine.connect() as connection:
-            stmt = text("""
-                INSERT INTO server_configs (server_id, {keys}) VALUES (:server_id, :{values})
-                ON CONFLICT (server_id) DO UPDATE SET {update_stmt}
-            """.format(
-                keys=", ".join(new_values.keys()),
-                values=", :".join(new_values.keys()),
-                update_stmt=", ".join([f"{key} = EXCLUDED.{key}" for key in new_values.keys()])
-            ))
-            params = {"server_id": int(server_id), **new_values}
-            result = connection.execute(stmt, params)
-            connection.commit()
-            print(f"🔄 DB更新試行: server_id={server_id}")
-            return result
+        # update_oneは結果オブジェクトを返す
+        result = db.update_one({"_id": server_id}, {"$set": new_values}, upsert=True)
+        print(f"🔄 DB更新試行: server_id={server_id}, acknowledged={result.acknowledged}")
+        return result
     except Exception as e:
         print(f"❌ update_configエラー: {e}")
         return None
 
-# --- ログ送信機能 ---
+# --- ログ送信機能 (変更なし) ---
 async def send_log(guild, title, description, color):
     config = get_config(str(guild.id))
     log_channel_id = config.get("log_channel_id")
@@ -78,7 +59,7 @@ async def send_log(guild, title, description, color):
             except Exception as e:
                 print(f"ログチャンネルへの送信に失敗しました: {e}")
 
-# --- Discord Bot設定 ---
+# --- Discord Bot設定 (変更なし) ---
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
@@ -89,20 +70,20 @@ class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
-
     async def setup_hook(self):
         await self.tree.sync()
         print(f"✅ コマンドツリーを同期しました。")
 
 client = MyClient(intents=intents)
 
-# --- コマンド定義 ---
+# --- コマンド定義 (DB操作部分のロジックを微調整) ---
 @client.tree.command(name="set_channel", description="キーワードに反応するチャンネルを設定します。")
 @app_commands.checks.has_permissions(manage_guild=True)
 async def set_channel(interaction: discord.Interaction, channel: discord.TextChannel):
     await interaction.response.defer(ephemeral=True)
-    result = update_config(interaction.guild.id, {"channel_id": channel.id})
-    if result:
+    # MongoDBではサーバーIDを文字列として扱う
+    result = update_config(str(interaction.guild.id), {"channel_id": channel.id})
+    if result and result.acknowledged:
         await interaction.followup.send(f"✅ 監視対象を {channel.mention} に設定しました。", ephemeral=True)
     else:
         await interaction.followup.send("❌ データベースの更新に失敗しました。", ephemeral=True)
@@ -114,8 +95,8 @@ async def set_config(interaction: discord.Interaction, keyword: str, role: disco
     if interaction.guild.me.top_role <= role:
         await interaction.followup.send(f"❌ Botのロールを {role.mention} より上位に配置してください。", ephemeral=True)
         return
-    result = update_config(interaction.guild.id, {"keyword": keyword, "role_id": role.id})
-    if result:
+    result = update_config(str(interaction.guild.id), {"keyword": keyword, "role_id": role.id})
+    if result and result.acknowledged:
         await interaction.followup.send(f"✅ キーワードを「**{keyword}**」、ロールを **{role.mention}** に設定しました。", ephemeral=True)
     else:
         await interaction.followup.send("❌ データベースの更新に失敗しました。", ephemeral=True)
@@ -124,11 +105,14 @@ async def set_config(interaction: discord.Interaction, keyword: str, role: disco
 @app_commands.checks.has_permissions(manage_guild=True)
 async def set_log_channel(interaction: discord.Interaction, log_channel: discord.TextChannel):
     await interaction.response.defer(ephemeral=True)
-    result = update_config(interaction.guild.id, {"log_channel_id": log_channel.id})
-    if result:
+    result = update_config(str(interaction.guild.id), {"log_channel_id": log_channel.id})
+    if result and result.acknowledged:
         await interaction.followup.send(f"✅ ログを {log_channel.mention} に送信します。", ephemeral=True)
     else:
         await interaction.followup.send("❌ データベースの更新に失敗しました。", ephemeral=True)
+
+# (check_roles, show_config, ping はPostgreSQL版とほぼ同じロジックで動作します)
+# (以下、コードの完全性のために含めます)
 
 @client.tree.command(name="check_roles", description="Botのロール階層と権限を診断します。")
 @app_commands.checks.has_permissions(manage_guild=True)
@@ -161,7 +145,7 @@ async def show_config(interaction: discord.Interaction):
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"🏓 Pong! `{client.latency * 1000:.2f}ms`")
 
-# --- イベントハンドラ ---
+# --- イベントハンドラ (変更なし) ---
 @client.event
 async def on_ready():
     print(f'✅ {client.user} としてログインしました！')
@@ -189,14 +173,19 @@ async def on_message(message):
                         description=f"ユーザー: {message.author.mention}\nロール: {role.mention}",
                         color=discord.Color.green()
                     )
+                    # メッセージ削除はForbiddenエラーを考慮
+                    try:
+                        await message.delete()
+                    except discord.errors.Forbidden:
+                        print("INFO: メッセージ削除権限がありません。")
                     
                     await message.channel.send(f"{message.author.mention} さんに **{role.name}** ロールを付与しました！", delete_after=10)
                 except discord.errors.Forbidden:
-                    print("エラー: ロールの付与またはメッセージの削除権限がありません。")
+                    print("エラー: ロールの付与権限がありません。")
                     await send_log(
                         guild=message.guild,
                         title="❌ ロール付与失敗",
-                        description=f"原因: Botの権限不足です。\n「ロールの管理」と「メッセージの管理」権限を確認してください。",
+                        description=f"原因: Botの権限不足です。\n「ロールの管理」権限を確認してください。",
                         color=discord.Color.red()
                     )
                 except Exception as e:
@@ -204,13 +193,15 @@ async def on_message(message):
     except Exception as e:
         print(f"❌ on_message処理中に予期せぬエラーが発生: {e}")
 
+
 # --- メイン実行 ---
 keep_alive()
-if DISCORD_TOKEN and POSTGRES_URI:
+# ★ POSTGRES_URIからMONGO_URIに変更
+if DISCORD_TOKEN and MONGO_URI:
     print("🚀 Discord Bot を起動中...")
     client.run(DISCORD_TOKEN)
 else:
     if not DISCORD_TOKEN:
         print("❌ DISCORD_TOKENが設定されていません。")
-    if not POSTGRES_URI:
-        print("❌ POSTGRES_URIが設定されていません。")
+    if not MONGO_URI:
+        print("❌ MONGO_URIが設定されていません。")
