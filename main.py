@@ -192,9 +192,24 @@ async def on_message(message):
                         description=f"ユーザー: {message.author.mention}\nロール: {role.mention}",
                         color=discord.Color.green()
                     )
-
-                    
+                  
                     await message.channel.send(f"{message.author.mention} さんに **{role.name}** ロールを付与しました！", delete_after=10)
+                    dm_message = (
+                        "確認ありがとうございます。\n"
+                        "現段階の次回新規入隊案内は ⁠<#1188077063899447334> をご覧下さい。\n"
+                        "参加の可否にあっては送信しなくても大丈夫です。\n"
+                        "今後の流れや講習内容にあっては ⁠<#1188077063899447334> こちらから閲覧できます。\n"
+                        "また不明点・問題点があれば、⁠<#1259234807796207727> に書いてある内容を確認して下さい。"
+                        "その他問題・不明部分があれば 「@教官」または「@事務」にメンションして下さい。"
+                    )
+                    try:
+                        await message.author.send(dm_message)
+                        print(f"✅ {message.author.name} さんへDMを送信しました。")
+                    except discord.errors.Forbidden:
+                        print(f"❌ {message.author.name} さんへのDM送信に失敗しました。DMが閉鎖されている可能性があります。")
+                    except Exception as e:
+                        print(f"❌ DM送信中に予期せぬエラー: {e}")
+                
                 except discord.errors.Forbidden:
                     print("エラー: ロールの付与権限がありません。")
                     await send_log(
