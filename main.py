@@ -158,8 +158,8 @@ async def on_member_join(member):
     print(f"🎉 新規参加: {member.name} がサーバー '{member.guild.name}' に参加しました。")
     welcome_message = (
         f"{member.mention}さん「Platoon Server」へようこそ。\n"
-        "入隊希望の方は下記のコミュニティ規約を確認して頂き、 『確認しました』と <#1188077063899447333> へ書き込みをお願いします！\n"
-        "原則botのみでの対応になります。その為『』の中の文言のみを打込みお願い致します。\n\n"
+        "入隊希望の方は下記のコミュニティ規約を確認して頂き、 ```確認しました``` と \n <#1188077063899447333> へ書き込みをお願いします！\n\n"
+        "原則botのみでの対応になります。\n"
         "また、規約同意を頂けない場合はキック処理しますのでご了承下さい。\n"
         "https://docs.google.com/document/d/1vuwClxhsNRUrAhR0SoaL5RA73qzTI6kY/edit#heading=h.30j0zll"
     )
